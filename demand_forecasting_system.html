@@ -1,0 +1,385 @@
+
+<h2 class="sr-only">Demand Forecasting System — upload a CSV with Date, Product, Quantity columns to forecast future sales</h2>
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font-sans); }
+  .app { padding: 1.5rem 0; }
+  .header { margin-bottom: 1.5rem; }
+  .header h1 { font-size: 20px; font-weight: 500; color: var(--color-text-primary); }
+  .header p { font-size: 13px; color: var(--color-text-secondary); margin-top: 4px; }
+  .upload-zone { border: 1.5px dashed var(--color-border-secondary); border-radius: var(--border-radius-lg); padding: 2rem; text-align: center; cursor: pointer; transition: border-color 0.2s; margin-bottom: 1rem; }
+  .upload-zone:hover, .upload-zone.drag { border-color: #3c8edd; }
+  .upload-zone .icon { font-size: 28px; margin-bottom: 8px; }
+  .upload-zone p { font-size: 14px; color: var(--color-text-secondary); }
+  .upload-zone strong { color: var(--color-text-primary); }
+  #fileInput { display: none; }
+  .sample-btn { font-size: 12px; color: #3c8edd; background: none; border: none; cursor: pointer; text-decoration: underline; margin-top: 6px; }
+  .controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 1.5rem; }
+  .ctrl-card { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 12px; }
+  .ctrl-card label { font-size: 11px; color: var(--color-text-secondary); display: block; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .ctrl-card select { width: 100%; font-size: 13px; background: var(--color-background-primary); color: var(--color-text-primary); border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); padding: 6px 8px; }
+  .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 1.5rem; }
+  .metric { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 14px; }
+  .metric .label { font-size: 11px; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+  .metric .value { font-size: 22px; font-weight: 500; color: var(--color-text-primary); }
+  .metric .sub { font-size: 11px; color: var(--color-text-secondary); margin-top: 2px; }
+  .chart-card { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 1.25rem; margin-bottom: 1rem; }
+  .chart-card h3 { font-size: 14px; font-weight: 500; color: var(--color-text-primary); margin-bottom: 1rem; }
+  .chart-wrap { position: relative; width: 100%; height: 240px; }
+  .legend { display: flex; gap: 16px; margin-bottom: 10px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--color-text-secondary); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+  .download-btn { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 8px 16px; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); background: none; color: var(--color-text-primary); cursor: pointer; }
+  .download-btn:hover { background: var(--color-background-secondary); }
+  .status { font-size: 13px; color: var(--color-text-secondary); padding: 8px 0; }
+  .error { color: #c0392b; font-size: 13px; }
+  .table-wrap { overflow-x: auto; margin-top: 1rem; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-secondary); padding: 6px 10px; border-bottom: 0.5px solid var(--color-border-tertiary); text-align: left; font-weight: 500; }
+  td { padding: 6px 10px; border-bottom: 0.5px solid var(--color-border-tertiary); color: var(--color-text-primary); }
+  .badge { display: inline-block; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 500; }
+  .badge-up { background: #eaf3de; color: #3b6d11; }
+  .badge-dn { background: #fcebeb; color: #a32d2d; }
+  .hidden { display: none; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+</style>
+
+<div class="app">
+  <div class="header">
+    <h1>Demand Forecasting System</h1>
+    <p>Upload sales data to predict future demand and optimize your inventory</p>
+  </div>
+
+  <div class="upload-zone" id="uploadZone">
+    <div class="icon">📂</div>
+    <p><strong>Click to upload</strong> or drag &amp; drop a CSV file</p>
+    <p style="font-size:12px; margin-top:4px;">Required columns: Date, Product, Quantity</p>
+    <input type="file" id="fileInput" accept=".csv" />
+    <br/>
+    <button class="sample-btn" id="loadSample">Load sample dataset instead</button>
+  </div>
+
+  <div id="statusMsg" class="status hidden"></div>
+  <div id="errorMsg" class="error hidden"></div>
+
+  <div id="controls" class="controls hidden">
+    <div class="ctrl-card">
+      <label>Product</label>
+      <select id="productSelect"></select>
+    </div>
+    <div class="ctrl-card">
+      <label>Forecast Horizon</label>
+      <select id="horizonSelect">
+        <option value="7">Next 7 days</option>
+        <option value="14">Next 14 days</option>
+        <option value="30" selected>Next 30 days</option>
+        <option value="60">Next 60 days</option>
+        <option value="90">Next 90 days</option>
+      </select>
+    </div>
+    <div class="ctrl-card">
+      <label>Model</label>
+      <select id="modelSelect">
+        <option value="linear">Linear Regression</option>
+        <option value="ma" selected>Moving Average</option>
+        <option value="exp">Exponential Smoothing</option>
+        <option value="seasonal">Seasonal Trend</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="metrics" class="metrics hidden">
+    <div class="metric"><div class="label">Avg Daily Sales</div><div class="value" id="mAvg">—</div><div class="sub">units/day</div></div>
+    <div class="metric"><div class="label">Total Historical</div><div class="value" id="mTotal">—</div><div class="sub">units sold</div></div>
+    <div class="metric"><div class="label">Forecast Total</div><div class="value" id="mForecast">—</div><div class="sub">units predicted</div></div>
+    <div class="metric"><div class="label">Trend</div><div class="value" id="mTrend">—</div><div class="sub" id="mTrendSub">vs prior period</div></div>
+  </div>
+
+  <div id="mainChartCard" class="chart-card hidden">
+    <h3>Historical Sales &amp; Forecast</h3>
+    <div class="legend">
+      <span class="legend-item"><span class="legend-dot" style="background:#3c8edd"></span>Historical</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#f09f27; opacity:0.6"></span>Forecast</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#f09f27; opacity:0.2; border: 1px dashed #f09f27"></span>Confidence band</span>
+    </div>
+    <div class="chart-wrap"><canvas id="mainChart" role="img" aria-label="Line chart showing historical sales and demand forecast"></canvas></div>
+  </div>
+
+  <div id="twoCol" class="two-col hidden">
+    <div class="chart-card">
+      <h3>Sales by product</h3>
+      <div class="chart-wrap" style="height:180px"><canvas id="productChart" role="img" aria-label="Bar chart of sales by product"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Day-of-week pattern</h3>
+      <div class="chart-wrap" style="height:180px"><canvas id="dowChart" role="img" aria-label="Bar chart of average sales by day of week"></canvas></div>
+    </div>
+  </div>
+
+  <div id="tableCard" class="chart-card hidden">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <h3 style="margin-bottom:0">Forecast detail — first 14 days</h3>
+      <button class="download-btn" id="downloadBtn">Download CSV ↓</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Predicted Qty</th><th>Lower Bound</th><th>Upper Bound</th><th>Trend</th></tr></thead>
+        <tbody id="forecastTable"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script>
+let rawData = [], allProducts = [], mainChartInst, productChartInst, dowChartInst;
+
+function generateSampleData() {
+  const products = ['Widget A','Widget B','Widget C'];
+  const rows = [];
+  const start = new Date('2024-01-01');
+  for (let i = 0; i < 180; i++) {
+    const d = new Date(start); d.setDate(d.getDate() + i);
+    const dow = d.getDay();
+    const weekEffect = [0.7, 1.0, 1.1, 1.05, 1.2, 1.4, 0.9][dow];
+    const trend = 1 + i * 0.003;
+    products.forEach((p, pi) => {
+      const base = [40, 25, 15][pi];
+      const noise = (Math.random() - 0.5) * 10;
+      const qty = Math.max(0, Math.round(base * weekEffect * trend + noise));
+      rows.push({ Date: d.toISOString().slice(0,10), Product: p, Quantity: qty });
+    });
+  }
+  return rows;
+}
+
+function parseCSV(text) {
+  const result = Papa.parse(text, { header: true, skipEmptyLines: true, dynamicTyping: true });
+  if (!result.data.length) throw new Error('CSV is empty');
+  const cols = Object.keys(result.data[0]).map(c => c.trim());
+  const dateCol = cols.find(c => /date/i.test(c));
+  const prodCol = cols.find(c => /product|item|sku|name/i.test(c));
+  const qtyCol  = cols.find(c => /qty|quantity|sales|sold|units/i.test(c));
+  if (!dateCol || !prodCol || !qtyCol) throw new Error(`Could not find required columns. Found: ${cols.join(', ')}. Need: Date, Product, Quantity`);
+  return result.data.map(r => ({
+    Date: String(r[dateCol]).trim(),
+    Product: String(r[prodCol]).trim(),
+    Quantity: Number(r[qtyCol]) || 0
+  }));
+}
+
+function processData(data) {
+  rawData = data.sort((a,b) => a.Date.localeCompare(b.Date));
+  allProducts = [...new Set(rawData.map(r => r.Product))];
+  const sel = document.getElementById('productSelect');
+  sel.innerHTML = ['All Products', ...allProducts].map(p => `<option value="${p}">${p}</option>`).join('');
+  document.getElementById('controls').classList.remove('hidden');
+  render();
+}
+
+function getFilteredData() {
+  const prod = document.getElementById('productSelect').value;
+  let filtered = prod === 'All Products' ? rawData : rawData.filter(r => r.Product === prod);
+  const grouped = {};
+  filtered.forEach(r => { grouped[r.Date] = (grouped[r.Date] || 0) + r.Quantity; });
+  const dates = Object.keys(grouped).sort();
+  return { dates, values: dates.map(d => grouped[d]) };
+}
+
+function movingAvg(vals, w) {
+  return vals.map((_, i) => {
+    const start = Math.max(0, i - w + 1);
+    const slice = vals.slice(start, i + 1);
+    return slice.reduce((a,b) => a+b,0) / slice.length;
+  });
+}
+
+function forecast(dates, values, horizon, model) {
+  const n = values.length;
+  const lastDate = new Date(dates[n-1]);
+  const futureDates = [];
+  for (let i = 1; i <= horizon; i++) {
+    const d = new Date(lastDate); d.setDate(d.getDate()+i);
+    futureDates.push(d.toISOString().slice(0,10));
+  }
+
+  let preds = [];
+  if (model === 'linear') {
+    const xs = values.map((_,i) => i);
+    const xm = xs.reduce((a,b)=>a+b,0)/n, ym = values.reduce((a,b)=>a+b,0)/n;
+    let num=0, den=0;
+    xs.forEach((x,i) => { num += (x-xm)*(values[i]-ym); den += (x-xm)**2; });
+    const slope = den ? num/den : 0, intercept = ym - slope*xm;
+    preds = futureDates.map((_,i) => Math.max(0, Math.round(intercept + slope*(n+i))));
+  } else if (model === 'ma') {
+    const w = Math.min(14, n);
+    const base = values.slice(-w).reduce((a,b)=>a+b,0)/w;
+    const xs = values.slice(-w).map((_,i)=>i);
+    const xm = xs.reduce((a,b)=>a+b,0)/w;
+    const ym2 = base;
+    let num2=0,den2=0;
+    xs.forEach((x,i)=>{num2+=(x-xm)*(values[n-w+i]-ym2);den2+=(x-xm)**2;});
+    const slope2=den2?num2/den2:0;
+    preds = futureDates.map((_,i)=>Math.max(0,Math.round(base+slope2*(i+1))));
+  } else if (model === 'exp') {
+    const alpha=0.3; let level=values[0];
+    values.forEach(v=>{ level = alpha*v + (1-alpha)*level; });
+    const trend = (values[n-1]-values[Math.max(0,n-7)])/7;
+    preds = futureDates.map((_,i)=>Math.max(0,Math.round(level+trend*(i+1))));
+  } else {
+    const dowAvg = Array(7).fill(0), dowCnt = Array(7).fill(0);
+    dates.forEach((d,i)=>{ const dow=new Date(d).getDay(); dowAvg[dow]+=values[i]; dowCnt[dow]++; });
+    const dowFactor = dowAvg.map((s,i)=>dowCnt[i]?(s/dowCnt[i]):1);
+    const globalAvg = values.reduce((a,b)=>a+b,0)/n;
+    const normFactor = dowFactor.map(f=>f/globalAvg);
+    const xs=values.map((_,i)=>i), xm=xs.reduce((a,b)=>a+b,0)/n, ym=values.reduce((a,b)=>a+b,0)/n;
+    let num=0,den=0;
+    xs.forEach((x,i)=>{num+=(x-xm)*(values[i]-ym);den+=(x-xm)**2;});
+    const slope=den?num/den:0, intercept=ym-slope*xm;
+    preds = futureDates.map((_,i)=>{
+      const dow=new Date(futureDates[i]).getDay();
+      const base=Math.max(0,intercept+slope*(n+i));
+      return Math.max(0,Math.round(base*(normFactor[dow]||1)));
+    });
+  }
+
+  const std = Math.sqrt(values.map(v=>(v-values.reduce((a,b)=>a+b,0)/n)**2).reduce((a,b)=>a+b,0)/n);
+  const lower = preds.map(p=>Math.max(0,Math.round(p-1.5*std)));
+  const upper = preds.map(p=>Math.round(p+1.5*std));
+  return { futureDates, preds, lower, upper };
+}
+
+function render() {
+  const { dates, values } = getFilteredData();
+  const horizon = parseInt(document.getElementById('horizonSelect').value);
+  const model = document.getElementById('modelSelect').value;
+  const { futureDates, preds, lower, upper } = forecast(dates, values, horizon, model);
+
+  const avg = Math.round(values.reduce((a,b)=>a+b,0)/values.length);
+  const total = values.reduce((a,b)=>a+b,0);
+  const fTotal = preds.reduce((a,b)=>a+b,0);
+  const prior = values.slice(-horizon);
+  const priorSum = prior.reduce((a,b)=>a+b,0);
+  const pct = priorSum ? Math.round((fTotal-priorSum)/priorSum*100) : 0;
+
+  document.getElementById('mAvg').textContent = avg.toLocaleString();
+  document.getElementById('mTotal').textContent = total.toLocaleString();
+  document.getElementById('mForecast').textContent = fTotal.toLocaleString();
+  document.getElementById('mTrend').textContent = (pct>=0?'+':'')+pct+'%';
+  document.getElementById('metrics').classList.remove('hidden');
+
+  const maxShow = 60;
+  const histDates = dates.slice(-maxShow);
+  const histVals = values.slice(-maxShow);
+  const histLen = histDates.length;
+
+  const allLabels = [...histDates, ...futureDates];
+  const historicalDataset = { label:'Historical', data:[...histVals,...new Array(futureDates.length).fill(null)], borderColor:'#3c8edd', borderWidth:2, pointRadius:1.5, tension:0.3, fill:false };
+  const forecastDataset = { label:'Forecast', data:[...new Array(histLen-1).fill(null), histVals[histLen-1], ...preds], borderColor:'#f09f27', borderWidth:2, borderDash:[5,3], pointRadius:1.5, tension:0.3, fill:false };
+  const bandUpper = { label:'Upper', data:[...new Array(histLen).fill(null),...upper], borderColor:'rgba(240,159,39,0)', fill:'+1', backgroundColor:'rgba(240,159,39,0.12)', pointRadius:0, tension:0.3 };
+  const bandLower = { label:'Lower', data:[...new Array(histLen).fill(null),...lower], borderColor:'rgba(240,159,39,0)', fill:false, pointRadius:0, tension:0.3 };
+
+  const ctx = document.getElementById('mainChart').getContext('2d');
+  if (mainChartInst) mainChartInst.destroy();
+  mainChartInst = new Chart(ctx, {
+    type:'line',
+    data:{ labels:allLabels, datasets:[bandUpper, bandLower, historicalDataset, forecastDataset] },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:false }, tooltip:{ filter:item=>item.dataset.label==='Historical'||item.dataset.label==='Forecast' } },
+      scales:{
+        x:{ ticks:{ maxTicksLimit:10, maxRotation:30, font:{size:10}, color:'#888' }, grid:{ display:false } },
+        y:{ ticks:{ font:{size:10}, color:'#888' }, grid:{ color:'rgba(128,128,128,0.1)' } }
+      }
+    }
+  });
+  document.getElementById('mainChartCard').classList.remove('hidden');
+
+  const prodTotals = {};
+  const filtered = document.getElementById('productSelect').value === 'All Products' ? rawData : rawData.filter(r=>r.Product===document.getElementById('productSelect').value);
+  allProducts.forEach(p=>{ prodTotals[p]=filtered.filter(r=>r.Product===p).reduce((a,r)=>a+r.Quantity,0); });
+  const prodColors = ['#3c8edd','#f09f27','#5dcaa5','#d4537e','#7f77dd'];
+
+  const ctx2 = document.getElementById('productChart').getContext('2d');
+  if (productChartInst) productChartInst.destroy();
+  productChartInst = new Chart(ctx2, {
+    type:'bar',
+    data:{ labels:allProducts, datasets:[{ label:'Total Sales', data:allProducts.map(p=>prodTotals[p]||0), backgroundColor:allProducts.map((_,i)=>prodColors[i%prodColors.length]+'cc') }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{ticks:{font:{size:10},color:'#888'},grid:{display:false}}, y:{ticks:{font:{size:10},color:'#888'},grid:{color:'rgba(128,128,128,0.1)'}} } }
+  });
+
+  const dowSums = Array(7).fill(0), dowCounts = Array(7).fill(0);
+  dates.forEach((d,i)=>{ const dow=new Date(d).getDay(); dowSums[dow]+=values[i]; dowCounts[dow]++; });
+  const dowAvgs = dowSums.map((s,i)=>dowCounts[i]?Math.round(s/dowCounts[i]):0);
+  const dayNames=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const ctx3 = document.getElementById('dowChart').getContext('2d');
+  if (dowChartInst) dowChartInst.destroy();
+  dowChartInst = new Chart(ctx3, {
+    type:'bar',
+    data:{ labels:dayNames, datasets:[{ label:'Avg Units', data:dowAvgs, backgroundColor:'#5dcaa5cc' }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{ticks:{font:{size:10},color:'#888'},grid:{display:false}}, y:{ticks:{font:{size:10},color:'#888'},grid:{color:'rgba(128,128,128,0.1)'}} } }
+  });
+  document.getElementById('twoCol').classList.remove('hidden');
+
+  const tbody = document.getElementById('forecastTable');
+  const prevAvg = values.slice(-7).reduce((a,b)=>a+b,0)/7;
+  tbody.innerHTML = futureDates.slice(0,14).map((d,i)=>{
+    const trend = preds[i] >= prevAvg ? '<span class="badge badge-up">Up</span>' : '<span class="badge badge-dn">Down</span>';
+    return `<tr><td>${d}</td><td><strong>${preds[i]}</strong></td><td>${lower[i]}</td><td>${upper[i]}</td><td>${trend}</td></tr>`;
+  }).join('');
+  document.getElementById('tableCard').classList.remove('hidden');
+
+  document.getElementById('downloadBtn').onclick = () => {
+    let csv = 'Date,Product,Predicted_Qty,Lower_Bound,Upper_Bound\n';
+    const prod = document.getElementById('productSelect').value;
+    futureDates.forEach((d,i) => { csv += `${d},${prod},${preds[i]},${lower[i]},${upper[i]}\n`; });
+    const blob = new Blob([csv], {type:'text/csv'});
+    const a = Object.assign(document.createElement('a'), {href:URL.createObjectURL(blob), download:'forecast_results.csv'});
+    a.click();
+  };
+}
+
+document.getElementById('uploadZone').onclick = () => document.getElementById('fileInput').click();
+
+document.getElementById('uploadZone').addEventListener('dragover', e=>{ e.preventDefault(); e.currentTarget.classList.add('drag'); });
+document.getElementById('uploadZone').addEventListener('dragleave', e=>e.currentTarget.classList.remove('drag'));
+document.getElementById('uploadZone').addEventListener('drop', e=>{
+  e.preventDefault(); e.currentTarget.classList.remove('drag');
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file);
+});
+
+document.getElementById('fileInput').onchange = e => { if (e.target.files[0]) handleFile(e.target.files[0]); };
+
+function handleFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = parseCSV(e.target.result);
+      document.getElementById('statusMsg').textContent = `Loaded ${data.length} rows from "${file.name}"`;
+      document.getElementById('statusMsg').classList.remove('hidden');
+      document.getElementById('errorMsg').classList.add('hidden');
+      processData(data);
+    } catch(err) {
+      document.getElementById('errorMsg').textContent = 'Error: ' + err.message;
+      document.getElementById('errorMsg').classList.remove('hidden');
+    }
+  };
+  reader.readAsText(file);
+}
+
+document.getElementById('loadSample').onclick = e => {
+  e.stopPropagation();
+  const data = generateSampleData();
+  document.getElementById('statusMsg').textContent = 'Loaded sample dataset — 180 days, 3 products, 540 rows';
+  document.getElementById('statusMsg').classList.remove('hidden');
+  document.getElementById('errorMsg').classList.add('hidden');
+  processData(data);
+};
+
+['productSelect','horizonSelect','modelSelect'].forEach(id => {
+  document.getElementById(id).onchange = render;
+});
+</script>
